@@ -56,7 +56,35 @@ async function loadCSV() {
       totalQuestions = data.length;
     }
 
-    questions = shuffleArray([...data]).slice(0, totalQuestions);
+    let sourceQuestions = [...data];
+
+if (typeof MODE !== "undefined" && MODE === "Sprache") {
+  const uniqueByLanguage = new Map();
+
+  for (const item of data) {
+    const language = normalizeText(getField(item, ["Sprache"]));
+
+    if (!language) continue;
+
+    if (!uniqueByLanguage.has(language)) {
+      uniqueByLanguage.set(language, item);
+    }
+  }
+
+  sourceQuestions = Array.from(uniqueByLanguage.values());
+}
+
+if (questionSetting === "all") {
+  totalQuestions = sourceQuestions.length;
+} else {
+  totalQuestions = Number(questionSetting) || 5;
+}
+
+if (totalQuestions > sourceQuestions.length) {
+  totalQuestions = sourceQuestions.length;
+}
+
+questions = shuffleArray(sourceQuestions).slice(0, totalQuestions);
 
     nextQuestion();
   } catch (err) {
