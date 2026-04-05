@@ -1,11 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Country Quiz</title>
+  <meta charset="UTF-8">
+  <title>Länder Quiz</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    
+
+  <h1>Länder Quiz</h1>
+
+  <div id="quiz-box">
+
+    <select id="mode">
+      <option value="Hauptstadt">Hauptstadt</option>
+      <option value="Währung">Währung</option>
+      <option value="Flagge">Flagge</option>
+    </select>
+
+    <p id="frage">Lade Daten...</p>
+
+    <img id="flagge" style="display:none;">
+
+    <input type="text" id="antwort" placeholder="Deine Antwort">
+    <button onclick="checkAnswer()">Antwort prüfen</button>
+
+    <p id="result"></p>
+
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
