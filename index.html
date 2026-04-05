@@ -2,32 +2,112 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Länder Quiz</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="menu-page">
 
-  <h1>Länder Quiz</h1>
+  <div class="page-shell">
+    <div class="menu-card">
+      <h1>GeoLearn</h1>
 
-  <div id="quiz-box">
+      <div class="menu-grid">
+        <button class="menu-button" onclick="openPopup('hauptstadt.html', 'Hauptstädte')">
+          <span class="menu-title">Hauptstädte</span>
+        </button>
 
-    <select id="mode">
-      <option value="Hauptstadt">Hauptstadt</option>
-      <option value="Währung">Währung</option>
-      <option value="Flagge">Flagge</option>
-    </select>
+        <button class="menu-button" onclick="openPopup('flaggen.html', 'Flaggen')">
+          <span class="menu-title">Flaggen</span>
+        </button>
 
-    <p id="frage">Lade Daten...</p>
-
-    <img id="flagge" style="display:none;">
-
-    <input type="text" id="antwort" placeholder="Deine Antwort">
-    <button onclick="checkAnswer()">Antwort prüfen</button>
-
-    <p id="result"></p>
-
+        <button class="menu-button" onclick="openPopup('sprache.html', 'Sprachen')">
+          <span class="menu-title">Sprachen</span>
+        </button>
+      </div>
+    </div>
   </div>
 
-  <script src="script.js"></script>
+  <!-- Popup -->
+  <div id="popup" class="popup-overlay" onclick="handleOverlayClick(event)">
+    <div class="popup-card">
+      <div class="popup-header">
+        <h2 id="popupTitle">Quiz Einstellungen</h2>
+        <button class="icon-close" onclick="closePopup()" aria-label="Popup schließen">✕</button>
+      </div>
+
+      <div class="popup-body">
+        <div class="form-group">
+          <label for="questionCount">Anzahl Fragen</label>
+          <select id="questionCount">
+            <option value="10">10 Fragen</option>
+            <option value="20">20 Fragen</option>
+            <option value="50">50 Fragen</option>
+            <option value="all">Master</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="continent">Kontinent</label>
+          <select id="continent">
+            <option value="all">Alle</option>
+            <option value="Europa">Europa</option>
+            <option value="Asien">Asien</option>
+            <option value="Afrika">Afrika</option>
+            <option value="Nordamerika">Nordamerika</option>
+            <option value="Südamerika">Südamerika</option>
+            <option value="Ozeanien">Ozeanien</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="popup-actions">
+        <button class="primary-button" onclick="startQuiz()">Quiz starten</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedPage = "";
+    let selectedMode = "";
+
+    function openPopup(page, mode) {
+      selectedPage = page;
+      selectedMode = mode;
+
+      document.getElementById("popupTitle").innerText = mode + " Quiz starten";
+      document.getElementById("popup").classList.add("show");
+    }
+
+    function closePopup() {
+      document.getElementById("popup").classList.remove("show");
+    }
+
+    function handleOverlayClick(event) {
+      if (event.target.id === "popup") {
+        closePopup();
+      }
+    }
+
+    function startQuiz() {
+      const count = document.getElementById("questionCount").value;
+      const continent = document.getElementById("continent").value;
+
+      localStorage.setItem("questionCount", count);
+      localStorage.setItem("continent", continent);
+      localStorage.setItem("mode", selectedMode);
+      localStorage.setItem("currentQuestionIndex", 0);
+      localStorage.setItem("score", 0);
+
+      window.location.href = selectedPage;
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "Escape") {
+        closePopup();
+      }
+    });
+  </script>
+
 </body>
 </html>

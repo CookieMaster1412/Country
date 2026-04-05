@@ -1,28 +1,125 @@
 let data = [];
+let questions = [];
 let currentQuestion = {};
+let currentLanguageSentence = "";
+
+let questionSetting = localStorage.getItem("questionCount");
+let totalQuestions = 0;
+let currentIndex = Number(localStorage.getItem("currentQuestionIndex")) || 0;
+let score = Number(localStorage.getItem("score")) || 0;
 
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRhAkRLMaWpUhCVV93l1naufzK0WC6tSCsxKRNxg6gNEx54OHFahpAsFr7cpQ2Lp6CRdoUohwJ0WUo/pub?output=csv";
 
 async function loadCSV() {
-  const res = await fetch(CSV_URL);
-  const text = await res.text();
+  try {
+    const res = await fetch(CSV_URL);
+    const text = await res.text();
 
-  data = parseCSV(text);
-  nextQuestion();
+    data = parseCSV(text);
+    console.table(data.map(item => ({
+  land: getField(item, ["Land"]),
+  kontinent: getField(item, ["Kontinent"]),
+  normalized: normalizeText(getField(item, ["Kontinent"]))
+})));
+
+    const selectedContinent = localStorage.getItem("continent") || "all";
+
+    if (selectedContinent !== "all") {
+      data = data.filter(item => {
+        const continentValue = getField(item, ["Kontinent"]);
+        const normalizedSelected = normalizeText(selectedContinent);
+
+        const continents = normalizeText(continentValue)
+          .split(/[\/,;|]/)
+          .map(part => part.trim())
+          .filter(Boolean);
+
+        return continents.includes(normalizedSelected);
+      });
+    }
+
+    if (data.length === 0) {
+      const frageEl = document.getElementById("frage");
+      if (frageEl) {
+        frageEl.innerText = "Keine Daten für diese Auswahl gefunden.";
+      }
+      return;
+    }
+
+    if (questionSetting === "all") {
+      totalQuestions = data.length;
+    } else {
+      totalQuestions = Number(questionSetting) || 5;
+    }
+
+    if (totalQuestions > data.length) {
+      totalQuestions = data.length;
+    }
+
+    questions = shuffleArray([...data]).slice(0, totalQuestions);
+
+    nextQuestion();
+  } catch (err) {
+    console.error("Fehler beim Laden:", err);
+    const frageEl = document.getElementById("frage");
+    if (frageEl) {
+      frageEl.innerText = "Fehler beim Laden!";
+    }
+  }
 }
 
 function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",");
+  const rows = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (current !== "") {
+        rows.push(current);
+      }
+      current = "";
+
+      if (char === "\r" && nextChar === "\n") {
+        i++;
+      }
+    } else {
+      current += char;
+    }
+  }
+
+  if (current !== "") {
+    rows.push(current);
+  }
+
+  if (!rows.length) {
+    return [];
+  }
+
+  const headers = splitCSVLine(rows[0]).map(h =>
+    h.replace(/\uFEFF/g, "").trim()
+  );
 
   const result = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const obj = {};
-    const current = lines[i].split(",");
+  for (let i = 1; i < rows.length; i++) {
+    if (!rows[i].trim()) continue;
 
-    headers.forEach((header, j) => {
-      obj[header.trim()] = current[j]?.trim();
+    const values = splitCSVLine(rows[i]);
+    const obj = {};
+
+    headers.forEach((header, index) => {
+      obj[header] = (values[index] || "").trim();
     });
 
     result.push(obj);
@@ -31,53 +128,297 @@ function parseCSV(text) {
   return result;
 }
 
-function nextQuestion() {
-  const mode = document.getElementById("mode").value;
-  const random = data[Math.floor(Math.random() * data.length)];
+function splitCSVLine(line) {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
 
-  currentQuestion = random;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
 
-  const flagImg = document.getElementById("flagge");
-
-  if (mode === "Flagge") {
-    document.getElementById("frage").innerText =
-      "Zu welchem Land gehört diese Flagge?";
-
-    flagImg.style.display = "block";
-    flagImg.src = random.Flagge;
-  } else {
-    flagImg.style.display = "none";
-
-    document.getElementById("frage").innerText =
-      "Was ist die " + mode + " von " + random.Land + "?";
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
   }
 
-  document.getElementById("antwort").value = "";
-  document.getElementById("result").innerText = "";
+  values.push(current);
+  return values;
+}
+
+function getField(obj, possibleKeys) {
+  for (const key of possibleKeys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
+      return obj[key];
+    }
+  }
+
+  const realKeys = Object.keys(obj);
+
+  for (const possibleKey of possibleKeys) {
+    const normalizedPossibleKey = normalizeKey(possibleKey);
+
+    for (const realKey of realKeys) {
+      if (normalizeKey(realKey) === normalizedPossibleKey) {
+        return obj[realKey];
+      }
+    }
+  }
+
+  return "";
+}
+
+function normalizeKey(key) {
+  return (key || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function shuffleArray(array) {
+  const copy = [...array];
+
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+
+  return copy;
+}
+
+function normalizeText(text) {
+  return (text || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getRandomLanguageSentence(question) {
+  const possibleSentences = [
+    getField(question, ["Satz1", "Satz 1"]),
+    getField(question, ["Satz2", "Satz 2"]),
+    getField(question, ["Satz3", "Satz 3"])
+  ].filter(sentence => sentence && sentence.trim() !== "");
+
+  if (possibleSentences.length === 0) {
+    return "Kein Satz vorhanden.";
+  }
+
+  const randomIndex = Math.floor(Math.random() * possibleSentences.length);
+  return possibleSentences[randomIndex];
+}
+
+function nextQuestion() {
+  if (currentIndex >= totalQuestions) {
+    showResult();
+    return;
+  }
+
+  const frageEl = document.getElementById("frage");
+  const satzEl = document.getElementById("satz");
+  const antwortEl = document.getElementById("antwort");
+  const resultEl = document.getElementById("result");
+  const flagImg = document.getElementById("flagge");
+
+  const mode = typeof MODE !== "undefined" ? MODE : "Hauptstadt";
+  currentQuestion = questions[currentIndex];
+
+  if (!currentQuestion) {
+    if (frageEl) {
+      frageEl.innerText = "Fehler: Keine Frage gefunden.";
+    }
+    return;
+  }
+
+  const land = getField(currentQuestion, ["Land"]);
+  const flagge = getField(currentQuestion, ["Flagge"]);
+
+  if (mode === "Flagge") {
+    if (frageEl) {
+      frageEl.innerText =
+        "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
+        "Zu welchem Land gehört diese Flagge?";
+    }
+
+    if (satzEl) {
+      satzEl.innerText = "";
+    }
+
+    if (flagImg) {
+      flagImg.style.display = "block";
+      flagImg.src = flagge || "";
+      flagImg.alt = "Flagge";
+    }
+
+  } else if (mode === "Sprache") {
+    currentLanguageSentence = getRandomLanguageSentence(currentQuestion);
+
+    if (frageEl) {
+      frageEl.innerText =
+        "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
+        "Welche Sprache ist das?";
+    }
+
+    if (satzEl) {
+      satzEl.innerText = '"' + currentLanguageSentence + '"';
+    }
+
+    if (flagImg) {
+      flagImg.style.display = "none";
+      flagImg.src = "";
+    }
+
+  } else if (mode === "Hauptstadt") {
+    if (frageEl) {
+      frageEl.innerText =
+        "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
+        "Was ist die Hauptstadt von " + land + "?";
+    }
+
+    if (satzEl) {
+      satzEl.innerText = "";
+    }
+
+    if (flagImg) {
+      flagImg.style.display = "none";
+      flagImg.src = "";
+    }
+
+  } else {
+    if (frageEl) {
+      frageEl.innerText =
+        "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
+        "Fragetyp nicht erkannt.";
+    }
+
+    if (satzEl) {
+      satzEl.innerText = "";
+    }
+
+    if (flagImg) {
+      flagImg.style.display = "none";
+      flagImg.src = "";
+    }
+  }
+
+  if (antwortEl) {
+    antwortEl.value = "";
+    antwortEl.focus();
+  }
+
+  if (resultEl) {
+    resultEl.innerText = "";
+  }
+
+  updateScoreDisplay();
 }
 
 function checkAnswer() {
-  const input = document.getElementById("antwort").value.trim().toLowerCase();
-  const mode = document.getElementById("mode").value;
+  const antwortEl = document.getElementById("antwort");
+  const resultEl = document.getElementById("result");
+  const mode = typeof MODE !== "undefined" ? MODE : "Hauptstadt";
 
-  let correct;
+  if (!antwortEl || !resultEl) {
+    return;
+  }
+
+  const input = normalizeText(antwortEl.value);
+
+  if (!input) {
+    return;
+  }
+
+  let correct = "";
+  let displayCorrect = "";
 
   if (mode === "Flagge") {
-    correct = currentQuestion.Land.toLowerCase();
-  } else {
-    correct = currentQuestion[mode].toLowerCase();
+    displayCorrect = getField(currentQuestion, ["Land"]);
+    correct = normalizeText(displayCorrect);
+
+  } else if (mode === "Sprache") {
+    displayCorrect = getField(currentQuestion, ["Sprache"]);
+    correct = normalizeText(displayCorrect);
+
+  } else if (mode === "Hauptstadt") {
+    displayCorrect = getField(currentQuestion, ["Hauptstadt"]);
+    correct = normalizeText(displayCorrect);
+  }
+
+  if (!correct) {
+    resultEl.innerText = "Fehler: Richtige Antwort konnte nicht gefunden werden.";
+    return;
   }
 
   if (input === correct) {
-    document.getElementById("result").innerText = "✅ Richtig!";
+    score++;
+    resultEl.innerText = "✅ Richtig!";
   } else {
-    document.getElementById("result").innerText =
-      "❌ Falsch! Richtige Antwort: " + correct;
+    resultEl.innerText = "❌ Falsch! Richtige Antwort: " + displayCorrect;
   }
+
+  currentIndex++;
+
+  localStorage.setItem("score", score);
+  localStorage.setItem("currentQuestionIndex", currentIndex);
+
+  updateScoreDisplay();
 
   setTimeout(nextQuestion, 1500);
 }
 
-document.getElementById("mode").addEventListener("change", nextQuestion);
+function updateScoreDisplay() {
+  const scoreDisplay = document.getElementById("scoreDisplay");
+  if (scoreDisplay) {
+    scoreDisplay.innerText = "Punkte: " + score;
+  }
+}
+
+function showResult() {
+  const percent = totalQuestions > 0
+    ? Math.round((score / totalQuestions) * 100)
+    : 0;
+
+  document.body.innerHTML = `
+    <div class="page-shell">
+      <div class="quiz-card">
+        <h1>Ergebnis</h1>
+        <div class="quiz-box">
+          <p class="question-text">Du hast ${score} von ${totalQuestions} richtig!</p>
+          <p class="language-sentence">${percent}% korrekt</p>
+          <div class="answer-area">
+            <button class="primary-button" onclick="goHome()">Zurück zum Menü</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function goHome() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
+
+const antwortInput = document.getElementById("antwort");
+if (antwortInput) {
+  antwortInput.addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      checkAnswer();
+    }
+  });
+}
 
 loadCSV();
