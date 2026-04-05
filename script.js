@@ -44,7 +44,7 @@ function nextQuestion() {
       "Zu welchem Land gehört diese Flagge?";
 
     flagImg.style.display = "block";
-    flagImg.src = "picture/flag/" + random.Flagge;
+    flagImg.src = random.Flagge;
   } else {
     flagImg.style.display = "none";
 
