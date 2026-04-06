@@ -59,19 +59,25 @@ async function loadCSV() {
     let sourceQuestions = [...data];
 
 if (typeof MODE !== "undefined" && MODE === "Sprache") {
-  const uniqueByLanguage = new Map();
+  const groupedByLanguage = new Map();
 
   for (const item of data) {
-    const language = normalizeText(getField(item, ["Sprache"]));
+    const languageRaw = getField(item, ["Sprache"]);
+    const languageKey = normalizeText(languageRaw);
 
-    if (!language) continue;
+    if (!languageKey) continue;
 
-    if (!uniqueByLanguage.has(language)) {
-      uniqueByLanguage.set(language, item);
+    if (!groupedByLanguage.has(languageKey)) {
+      groupedByLanguage.set(languageKey, {
+        Sprache: languageRaw,
+        entries: []
+      });
     }
+
+    groupedByLanguage.get(languageKey).entries.push(item);
   }
 
-  sourceQuestions = Array.from(uniqueByLanguage.values());
+  sourceQuestions = Array.from(groupedByLanguage.values());
 }
 
 if (questionSetting === "all") {
@@ -234,6 +240,24 @@ function normalizeText(text) {
 }
 
 function getRandomLanguageSentence(question) {
+  if (question.entries && Array.isArray(question.entries)) {
+    const randomCountryIndex = Math.floor(Math.random() * question.entries.length);
+    const randomCountry = question.entries[randomCountryIndex];
+
+    const possibleSentences = [
+      getField(randomCountry, ["Satz1", "Satz 1"]),
+      getField(randomCountry, ["Satz2", "Satz 2"]),
+      getField(randomCountry, ["Satz3", "Satz 3"])
+    ].filter(sentence => sentence && sentence.trim() !== "");
+
+    if (possibleSentences.length === 0) {
+      return "Kein Satz vorhanden.";
+    }
+
+    const randomSentenceIndex = Math.floor(Math.random() * possibleSentences.length);
+    return possibleSentences[randomSentenceIndex];
+  }
+
   const possibleSentences = [
     getField(question, ["Satz1", "Satz 1"]),
     getField(question, ["Satz2", "Satz 2"]),
@@ -376,7 +400,7 @@ function checkAnswer() {
     correct = normalizeText(displayCorrect);
 
   } else if (mode === "Sprache") {
-    displayCorrect = getField(currentQuestion, ["Sprache"]);
+    displayCorrect = currentQuestion.Sprache || getField(currentQuestion, ["Sprache"]);
     correct = normalizeText(displayCorrect);
 
   } else if (mode === "Hauptstadt") {
