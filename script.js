@@ -16,11 +16,14 @@ async function loadCSV() {
     const text = await res.text();
 
     data = parseCSV(text);
-    console.table(data.map(item => ({
-  land: getField(item, ["Land"]),
-  kontinent: getField(item, ["Kontinent"]),
-  normalized: normalizeText(getField(item, ["Kontinent"]))
-})));
+
+    console.table(
+      data.map(item => ({
+        land: getField(item, ["Land"]),
+        kontinent: getField(item, ["Kontinent"]),
+        normalized: normalizeText(getField(item, ["Kontinent"]))
+      }))
+    );
 
     const selectedContinent = localStorage.getItem("continent") || "all";
 
@@ -46,51 +49,89 @@ async function loadCSV() {
       return;
     }
 
+    let sourceQuestions = [...data];
+    const mode = typeof MODE !== "undefined" ? MODE : "Hauptstadt";
+
+    if (mode === "Sprache") {
+      const groupedByLanguage = new Map();
+
+      for (const item of data) {
+        const languageRaw = getField(item, ["Sprache"]);
+        const languageKey = normalizeText(languageRaw);
+
+        if (!languageKey) continue;
+
+        if (!groupedByLanguage.has(languageKey)) {
+          groupedByLanguage.set(languageKey, {
+            Sprache: languageRaw,
+            entries: []
+          });
+        }
+
+        groupedByLanguage.get(languageKey).entries.push(item);
+      }
+
+      sourceQuestions = Array.from(groupedByLanguage.values());
+
+    } else if (mode === "Telefon") {
+      const groupedByPhone = new Map();
+
+      for (const item of data) {
+        const phoneRaw = getField(item, [
+          "Telefon",
+          "Vorwahl",
+          "Telefonvorwahl",
+          "Phone Number"
+        ]);
+        const phoneKey = (phoneRaw || "").trim();
+
+        if (!phoneKey) continue;
+
+        if (!groupedByPhone.has(phoneKey)) {
+          groupedByPhone.set(phoneKey, {
+            Telefon: phoneKey,
+            entries: []
+          });
+        }
+
+        groupedByPhone.get(phoneKey).entries.push(item);
+      }
+
+      sourceQuestions = Array.from(groupedByPhone.values());
+
+    } else if (mode === "Domain") {
+      const groupedByDomain = new Map();
+
+      for (const item of data) {
+        const domainRaw = getField(item, ["Domain"]);
+        const domainKey = (domainRaw || "").trim().toLowerCase();
+
+        if (!domainKey) continue;
+
+        if (!groupedByDomain.has(domainKey)) {
+          groupedByDomain.set(domainKey, {
+            Domain: domainKey,
+            entries: []
+          });
+        }
+
+        groupedByDomain.get(domainKey).entries.push(item);
+      }
+
+      sourceQuestions = Array.from(groupedByDomain.values());
+    }
+
     if (questionSetting === "all") {
-      totalQuestions = data.length;
+      totalQuestions = sourceQuestions.length;
     } else {
       totalQuestions = Number(questionSetting) || 5;
     }
 
-    if (totalQuestions > data.length) {
-      totalQuestions = data.length;
+    if (totalQuestions > sourceQuestions.length) {
+      totalQuestions = sourceQuestions.length;
     }
 
-    let sourceQuestions = [...data];
-
-if (typeof MODE !== "undefined" && MODE === "Sprache") {
-  const groupedByLanguage = new Map();
-
-  for (const item of data) {
-    const languageRaw = getField(item, ["Sprache"]);
-    const languageKey = normalizeText(languageRaw);
-
-    if (!languageKey) continue;
-
-    if (!groupedByLanguage.has(languageKey)) {
-      groupedByLanguage.set(languageKey, {
-        Sprache: languageRaw,
-        entries: []
-      });
-    }
-
-    groupedByLanguage.get(languageKey).entries.push(item);
-  }
-
-  sourceQuestions = Array.from(groupedByLanguage.values());
-}
-
-if (questionSetting === "all") {
-  totalQuestions = sourceQuestions.length;
-} else {
-  totalQuestions = Number(questionSetting) || 5;
-}
-
-if (totalQuestions > sourceQuestions.length) {
-  totalQuestions = sourceQuestions.length;
-}
-
-questions = shuffleArray(sourceQuestions).slice(0, totalQuestions);
+    questions = shuffleArray(sourceQuestions).slice(0, totalQuestions);
 
     nextQuestion();
   } catch (err) {
@@ -233,10 +274,12 @@ function shuffleArray(array) {
 
 function normalizeText(text) {
   return (text || "")
-    .trim()
-    .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function getRandomLanguageSentence(question) {
@@ -295,7 +338,7 @@ function nextQuestion() {
   }
 
   const land = getField(currentQuestion, ["Land"]);
-  const flagge = getField(currentQuestion, ["Flagge"]);
+  const flagge = getField(currentQuestion, ["Flagge", "Flag", "Flag URL"]);
 
   if (mode === "Flagge") {
     if (frageEl) {
@@ -309,9 +352,14 @@ function nextQuestion() {
     }
 
     if (flagImg) {
-      flagImg.style.display = "block";
-      flagImg.src = flagge || "";
-      flagImg.alt = "Flagge";
+      if (flagge && flagge.startsWith("http")) {
+        flagImg.style.display = "block";
+        flagImg.src = flagge;
+        flagImg.alt = "Flagge";
+      } else {
+        flagImg.style.display = "none";
+        flagImg.src = "";
+      }
     }
 
   } else if (mode === "Sprache") {
@@ -348,7 +396,42 @@ function nextQuestion() {
       flagImg.src = "";
     }
 
-  } else {
+  } else if (mode === "Telefon") {
+    const telefon = currentQuestion.Telefon || getField(currentQuestion, ["Telefon"]);
+
+    if (frageEl) {
+      frageEl.innerText =
+        "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
+        "Welches Land hat die Vorwahl " + telefon + "?";
+    }
+
+    if (satzEl) {
+      satzEl.innerText = "";
+    }
+
+    if (flagImg) {
+      flagImg.style.display = "none";
+      flagImg.src = "";
+    }
+
+  } else if (mode === "Domain") {
+    const domain = currentQuestion.Domain || getField(currentQuestion, ["Domain"]);
+
+    if (frageEl) {
+      frageEl.innerText =
+        "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
+        "Welches Land hat die Domain " + domain + "?";
+    }
+
+    if (satzEl) {
+      satzEl.innerText = "";
+    }
+
+    if (flagImg) {
+      flagImg.style.display = "none";
+      flagImg.src = "";
+    }
+  }else {
     if (frageEl) {
       frageEl.innerText =
         "(" + (currentIndex + 1) + "/" + totalQuestions + ") " +
@@ -406,6 +489,57 @@ function checkAnswer() {
   } else if (mode === "Hauptstadt") {
     displayCorrect = getField(currentQuestion, ["Hauptstadt"]);
     correct = normalizeText(displayCorrect);
+
+  } else if (mode === "Telefon") {
+    if (currentQuestion.entries && Array.isArray(currentQuestion.entries)) {
+      const validCountries = currentQuestion.entries
+        .map(item => getField(item, ["Land"]))
+        .filter(Boolean);
+
+      const normalizedCountries = validCountries.map(country => normalizeText(country));
+
+      if (normalizedCountries.includes(input)) {
+        score++;
+        resultEl.innerText = "✅ Richtig!";
+      } else {
+        resultEl.innerText = "❌ Falsch! Mögliche Antworten: " + validCountries.join(", ");
+      }
+
+      currentIndex++;
+      localStorage.setItem("score", score);
+      localStorage.setItem("currentQuestionIndex", currentIndex);
+      updateScoreDisplay();
+      setTimeout(nextQuestion, 1500);
+      return;
+    } else {
+      displayCorrect = getField(currentQuestion, ["Land"]);
+      correct = normalizeText(displayCorrect);
+    }
+  } else if (mode === "Domain") {
+    if (currentQuestion.entries && Array.isArray(currentQuestion.entries)) {
+      const validCountries = currentQuestion.entries
+        .map(item => getField(item, ["Land"]))
+        .filter(Boolean);
+
+      const normalizedCountries = validCountries.map(country => normalizeText(country));
+
+      if (normalizedCountries.includes(input)) {
+        score++;
+        resultEl.innerText = "✅ Richtig!";
+      } else {
+        resultEl.innerText = "❌ Falsch! Mögliche Antworten: " + validCountries.join(", ");
+      }
+
+      currentIndex++;
+      localStorage.setItem("score", score);
+      localStorage.setItem("currentQuestionIndex", currentIndex);
+      updateScoreDisplay();
+      setTimeout(nextQuestion, 1500);
+      return;
+    } else {
+      displayCorrect = getField(currentQuestion, ["Land"]);
+      correct = normalizeText(displayCorrect);
+    }
   }
 
   if (!correct) {

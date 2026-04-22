@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domain Quiz</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="quiz-page">
+
+  <div class="page-shell">
+    <div class="quiz-card">
+      <div class="quiz-topbar">
+        <button class="back-button" onclick="window.location.href='index.html'">
+          ⬅ Zurück
+        </button>
+        <div id="scoreDisplay" class="score-badge">Punkte: 0</div>
+      </div>
+
+      <div id="quiz-box" class="quiz-box">
+        <p id="frage" class="question-text">Lade Daten...</p>
+        <p id="satz" class="language-sentence"></p>
+
+        <img
+          id="flagge"
+          src=""
+          alt="Flagge"
+          class="flag-image"
+          style="display: none;"
+        >
+
+        <div class="answer-area">
+          <input type="text" id="antwort" placeholder="Deine Antwort eingeben">
+          <button class="primary-button" onclick="checkAnswer()">Antwort prüfen</button>
+        </div>
+
+        <p id="result" class="result-text"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const MODE = "Domain";
+  </script>
+  <script src="script.js"></script>
+
+</body>
+</html>
